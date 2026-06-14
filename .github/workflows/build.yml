@@ -1,0 +1,36 @@
+name: CS2 CSharp ImGui ESP Builder
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Depoyu Klonla (Checkout)
+      uses: actions/checkout@v4
+
+    - name: .NET SDK Kurulumu
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: NuGet Bağımlılıklarını Temizle ve Yukle
+      run: |
+        dotnet nuget locals all --clear
+        dotnet restore
+
+    - name: Optimize Edilmis Tek Parca EXE Derle (Publish)
+      run: |
+        dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:PublishReadyToRun=true /p:PublishTrimmed=false -o dist/
+
+    - name: Uretilen ImGui ESP EXE Dosyasini Paylas
+      uses: actions/upload-artifact@v4
+      with:
+        name: CS2_ImGui_ESP_Release
+        path: dist/*.exe
+        
