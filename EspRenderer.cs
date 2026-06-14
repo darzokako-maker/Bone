@@ -1,24 +1,24 @@
 using System;
 using System.Collections.Generic;
 using System.Numerics;
-using CS2Cheat.Core.Data;
-using CS2Cheat.Data.Entity;
-using CS2Cheat.Data.Game;
-using CS2Cheat.Graphics;
+using CS2Cheat.Core.Data;       // Team enumu için doğru ad alanı
+using CS2Cheat.Data.Entity;     // Player ve Entity sınıfları için doğru ad alanı
+using CS2Cheat.Data.Game;       // GameData sınıfı için doğru ad alanı
 using ImGuiNET;
 
 namespace CS2Cheat.Features
 {
     public static class EspRenderer
     {
-        private static readonly (string Start, string End)[] BoneConnections =
-        [
+        // C# 11 ve eski sürümlerle tam uyumlu dizi tanımı (Hata riskini sıfırlar)
+        private static readonly (string Start, string End)[] BoneConnections = new (string Start, string End)[]
+        {
             ("head", "neck_0"), ("neck_0", "spine_1"), ("spine_1", "spine_2"), ("spine_2", "pelvis"),
             ("spine_1", "arm_upper_L"), ("arm_upper_L", "arm_lower_L"), ("arm_lower_L", "hand_L"),
             ("spine_1", "arm_upper_R"), ("arm_upper_R", "arm_lower_R"), ("arm_lower_R", "hand_R"),
             ("pelvis", "leg_upper_L"), ("leg_upper_L", "leg_lower_L"), ("leg_lower_L", "ankle_L"),
             ("pelvis", "leg_upper_R"), ("leg_upper_R", "leg_lower_R"), ("leg_lower_R", "ankle_R")
-        ];
+        };
 
         public static void Draw(ImDrawListPtr drawList, GameData gameData)
         {
@@ -27,34 +27,41 @@ namespace CS2Cheat.Features
 
             foreach (var entity in gameData.Entities)
             {
+                // IsAlive kontrolü ve kendimizi çizmeyi engelleme
                 if (entity == null || !entity.IsAlive() || entity.AddressBase == player.AddressBase) continue;
 
-                // Terörist: Sarı, Anti-Terörist: Mavi
-                uint teamColor = entity.Team == Team.Terrorists ? OverlayRenderer.Colors.Yellow : OverlayRenderer.Colors.Blue;
+                // ImGui için Evrensel Renk Tanımlamaları (Harici sınıf bağımlılığını kaldırır)
+                uint teamColor = entity.Team == Team.Terrorists 
+                    ? ImGui.ColorConvertFloat4ToU32(new Vector4(1.0f, 1.0f, 0.0f, 1.0f))   // Sarı (T)
+                    : ImGui.ColorConvertFloat4ToU32(new Vector4(0.0f, 0.5f, 1.0f, 1.0f));  // Mavi (CT)
 
                 var boundingBox = GetEntityBoundingBox(player, entity);
                 if (boundingBox.HasValue)
                 {
                     var (min, max) = boundingBox.Value;
 
-                    // 1. Box Çizimi (Siyah gölgeli dış hat)
-                    drawList.AddRect(min - new Vector2(1, 1), max + new Vector2(1, 1), OverlayRenderer.Colors.Black, 0.0f, ImDrawFlags.None, 1.0f);
+                    // 1. Box ESP Çizimi (Siyah kenarlıklı)
+                    drawList.AddRect(min - new Vector2(1, 1), max + new Vector2(1, 1), ImGui.ColorConvertFloat4ToU32(new Vector4(0, 0, 0, 1)), 0.0f, ImDrawFlags.None, 1.0f);
                     drawList.AddRect(min, max, teamColor, 0.0f, ImDrawFlags.None, 1.5f);
 
                     // 2. Can Çubuğu (Health Bar)
                     float boxHeight = max.Y - min.Y;
                     float healthHeight = boxHeight * (entity.Health / 100.0f);
-                    uint healthColor = entity.Health < 40 ? OverlayRenderer.Colors.Red : (entity.Health < 75 ? OverlayRenderer.Colors.Yellow : OverlayRenderer.Colors.Green);
-                    drawList.AddRectFilled(new Vector2(min.X - 6, min.Y), new Vector2(min.X - 2, max.Y), OverlayRenderer.Colors.Black);
+                    
+                    uint healthColor = ImGui.ColorConvertFloat4ToU32(new Vector4(0.0f, 1.0f, 0.0f, 1.0f)); // Yeşil
+                    if (entity.Health < 40) healthColor = ImGui.ColorConvertFloat4ToU32(new Vector4(1.0f, 0.0f, 0.0f, 1.0f)); // Kırmızı
+                    else if (entity.Health < 75) healthColor = ImGui.ColorConvertFloat4ToU32(new Vector4(1.0f, 1.0f, 0.0f, 1.0f)); // Sarı
+
+                    drawList.AddRectFilled(new Vector2(min.X - 6, min.Y), new Vector2(min.X - 2, max.Y), ImGui.ColorConvertFloat4ToU32(new Vector4(0, 0, 0, 1)));
                     drawList.AddRectFilled(new Vector2(min.X - 5, max.Y - healthHeight), new Vector2(min.X - 3, max.Y), healthColor);
 
-                    // 3. İsim Yazısı
+                    // 3. Oyuncu İsmi Çizimi
                     string name = string.IsNullOrEmpty(entity.Name) ? "Enemy" : entity.Name;
                     Vector2 nameSize = ImGui.CalcTextSize(name);
-                    DrawOutlinedText(drawList, new Vector2(min.X + ((max.X - min.X) / 2.0f) - (nameSize.X / 2.0f), min.Y - nameSize.Y - 2), OverlayRenderer.Colors.White, name);
+                    DrawOutlinedText(drawList, new Vector2(min.X + ((max.X - min.X) / 2.0f) - (nameSize.X / 2.0f), min.Y - nameSize.Y - 2), ImGui.ColorConvertFloat4ToU32(new Vector4(1, 1, 1, 1)), name);
                 }
 
-                // 4. İskelet Çizimi (Skeleton)
+                // 4. İskelet (Skeleton) Çizimi
                 DrawSkeleton(drawList, player, entity, teamColor);
             }
         }
@@ -71,7 +78,7 @@ namespace CS2Cheat.Features
                 var startS = matrix.Transform(startW);
                 var endS = matrix.Transform(endW);
 
-                if (startS.Z >= 1 || endS.Z >= 1) continue; // Görüş alanı dışındaysa atla
+                if (startS.Z >= 1 || endS.Z >= 1) continue;
 
                 drawList.AddLine(new Vector2(startS.X, startS.Y), new Vector2(endS.X, endS.Y), color, 1.5f);
             }
@@ -104,7 +111,7 @@ namespace CS2Cheat.Features
 
         private static void DrawOutlinedText(ImDrawListPtr drawList, Vector2 pos, uint color, string text)
         {
-            drawList.AddText(pos + new Vector2(1, 1), OverlayRenderer.Colors.Black, text);
+            drawList.AddText(pos + new Vector2(1, 1), ImGui.ColorConvertFloat4ToU32(new Vector4(0, 0, 0, 1)), text);
             drawList.AddText(pos, color, text);
         }
     }
